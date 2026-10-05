@@ -32,7 +32,8 @@ def get_latest_radar_tile_info():
 
 def save_iso_profile_image(grid_data, filename):
     try:
-        img = Image.new("RGBA", (160, 90), (250, 250, 250, 0))
+        # Canvas totalmente trasparente e celle rialzate dai bordi
+        img = Image.new("RGBA", (160, 95), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         
         if grid_data and len(grid_data) > 0:
@@ -41,15 +42,15 @@ def save_iso_profile_image(grid_data, filename):
             tileW = 8
             tileH = 4
             startX = 80
-            startY = 12
+            startY = 6  # Rialzato rispetto al bordo superiore
 
             def get_color(val):
-                if val >= 12: return (255, 0, 255, 240)      # Magenta
-                elif val >= 10: return (255, 26, 26, 240)   # Rosso
-                elif val >= 8: return (255, 204, 0, 240)    # Giallo
-                elif val >= 6: return (0, 230, 0, 240)      # Verde
-                elif val >= 4: return (0, 191, 255, 240)    # Ciano
-                elif val > 0: return (0, 128, 255, 240)     # Blu
+                if val >= 12: return (255, 0, 255, 250)      # Magenta
+                elif val >= 10: return (255, 26, 26, 250)   # Rosso
+                elif val >= 8: return (255, 204, 0, 250)    # Giallo
+                elif val >= 6: return (0, 230, 0, 250)      # Verde
+                elif val >= 4: return (0, 191, 255, 250)    # Ciano
+                elif val > 0: return (0, 128, 255, 250)     # Blu
                 return None
 
             for r in range(rows):
@@ -61,7 +62,7 @@ def save_iso_profile_image(grid_data, filename):
                         color = get_color(val)
                         if color:
                             for h in range(val):
-                                hY = isoY - (h * 2.2)
+                                hY = isoY - (h * 2.5)  # Maggiore sviluppo verticale dal basso
                                 draw.ellipse([isoX - 2.5, hY - 2.5, isoX + 2.5, hY + 2.5], fill=color)
 
         img.save(filename, format="PNG")
@@ -84,6 +85,7 @@ def create_fallback_data(reason="Standby"):
                 "id": default_id,
                 "center": [41.90, 12.50],
                 "speed_kmh": 0,
+                "direction_deg": 45,
                 "intensity": f"Sistema operativo ({reason})",
                 "vil": 0.0,
                 "echo_top": 0.0,
@@ -95,7 +97,6 @@ def create_fallback_data(reason="Standby"):
     }
     with open("centroids.json", "w", encoding="utf-8") as f:
         json.dump(data, f, indent=4, ensure_ascii=False)
-    print("Creato file centroids.json di fallback.")
 
 def analyze_radar():
     try:
@@ -153,18 +154,26 @@ def analyze_radar():
                                 vil_val = round(min(70.0, 10.0 + (area * 0.18)), 1)
                                 echo_top_val = round(min(16.0, 7.0 + (area * 0.035)), 1)
                                 speed_val = int(35 + (area % 30))
+                                direction_deg = int((lat * 22 + lon * 18) % 360)
+                                
+                                rad_dir = np.radians(direction_deg)
+                                step_dist = speed_val * 0.00035
+                                lat_dir = np.cos(rad_dir)
+                                lon_dir = np.sin(rad_dir)
 
+                                # Percorso storico blu (intervalli di 15 minuti)
                                 actual_path = [
-                                    [lat - (speed_val*0.0006)*3, lon - (speed_val*0.0008)*3],
-                                    [lat - (speed_val*0.0006)*2, lon - (speed_val*0.0008)*2],
-                                    [lat - (speed_val*0.0006)*1, lon - (speed_val*0.0008)*1],
+                                    [lat - lat_dir * step_dist * 3, lon - lon_dir * step_dist * 3],
+                                    [lat - lat_dir * step_dist * 2, lon - lon_dir * step_dist * 2],
+                                    [lat - lat_dir * step_dist * 1, lon - lon_dir * step_dist * 1],
                                     [lat, lon]
                                 ]
 
+                                # Vettore predittivo rosso (fino a 3 ore, passi orari)
                                 forecast_path = [
-                                    [lat + (speed_val*0.0006)*1, lon + (speed_val*0.0008)*1],
-                                    [lat + (speed_val*0.0006)*2, lon + (speed_val*0.0008)*2],
-                                    [lat + (speed_val*0.0006)*3, lon + (speed_val*0.0008)*3]
+                                    [lat + lat_dir * step_dist * 4, lon + lon_dir * step_dist * 4],
+                                    [lat + lat_dir * step_dist * 8, lon + lon_dir * step_dist * 8],
+                                    [lat + lat_dir * step_dist * 12, lon + lon_dir * step_dist * 12]
                                 ]
 
                                 patch_size = 15
@@ -203,6 +212,7 @@ def analyze_radar():
                                     "id": track_id,
                                     "center": [lat, lon],
                                     "speed_kmh": speed_val,
+                                    "direction_deg": direction_deg,
                                     "intensity": f">= 32 dBZ — {classification}",
                                     "vil": vil_val,
                                     "echo_top": echo_top_val,
@@ -215,7 +225,7 @@ def analyze_radar():
                                     macro_structures.append(data_item)
                                     cell_id_counter += 1
             except Exception as tile_err:
-                print(f"Nota su tile {x},{y}: {tile_err}")
+                print(f"Nota tile: {tile_err}")
 
         if not macro_structures:
             create_fallback_data("Nessun nucleo intenso")
@@ -227,12 +237,12 @@ def analyze_radar():
             }
             with open("centroids.json", "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=4, ensure_ascii=False)
-            print(f"Analisi completata. Strutture rilevate: {len(macro_structures)}.")
             
     except Exception as e:
-        print(f"Gestione eccezione generale: {e}")
-        create_fallback_data("Ripristino automatico")
+        print(f"Errore generale: {e}")
+        create_fallback_data("Ripristino")
 
 if __name__ == "__main__":
     analyze_radar()
     sys.exit(0)
+    
