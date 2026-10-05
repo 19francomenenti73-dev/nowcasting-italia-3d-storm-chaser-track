@@ -22,7 +22,7 @@
         .leaflet-container svg {
             position: absolute;
         }
-        /* Banner inferiore unificato */
+        /* Banner inferiore */
         .map-banner {
             position: absolute;
             bottom: 15px;
@@ -64,13 +64,11 @@
             height: 3px;
             display: inline-block;
         }
-        /* Marker 3D fluttuante sul territorio */
+        /* Marker 3D senza bordi bianchi (completamente trasparente) */
         .cell-3d-wrapper {
-            background: rgba(255, 255, 255, 0.88);
-            padding: 2px 4px;
-            border-radius: 4px;
-            box-shadow: 0 3px 8px rgba(0,0,0,0.4);
-            border: 1px solid #999;
+            background: transparent;
+            border: none;
+            box-shadow: none;
             text-align: center;
             transition: transform 0.2s ease;
         }
@@ -78,7 +76,16 @@
             transform: scale(1.15);
             z-index: 9999;
         }
-        /* Punte di freccia / triangolini rossi pulsanti per il vettore predittivo a 3 ore */
+        /* Punto baricentro / centramento cella */
+        .centroid-dot {
+            width: 10px;
+            height: 10px;
+            background: #ffcc00;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 4px rgba(0,0,0,0.8);
+        }
+        /* Vettore predittivo rosso a punte di freccia pulsanti */
         .pulsing-arrow-icon {
             background: transparent;
             border: none;
@@ -101,15 +108,16 @@
 </head>
 <body>
 
-    <!-- Banner inferiore unificato -->
+    <!-- Banner inferiore -->
     <div class="map-banner">
         <div class="banner-section">
             <span><b>Tracker 3D Orografico:</b> <span id="active-count" class="counter-badge">0</span> attive</span>
             <span id="last-update" style="font-size: 10px; color: #666; border-left: 1px solid #ddd; padding-left: 8px;"></span>
         </div>
         <div class="banner-section" style="flex-wrap: wrap;">
-            <div class="legend-item"><span class="legend-line" style="background: #0066cc;"></span> Storico (ogni 15m)</div>
-            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ff1a1a; display:inline-block; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span> Predittivo 3h (Pulsante)</div>
+            <div class="legend-item"><span class="legend-line" style="background: #0066cc;"></span> Storico 15m</div>
+            <div class="legend-item"><span style="width: 8px; height: 8px; background: #ffcc00; border-radius: 50%; display:inline-block;"></span> Centroidi</div>
+            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ff1a1a; display:inline-block; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span> Predittivo 3h</div>
         </div>
     </div>
 
@@ -120,7 +128,6 @@
     <script>
         var map = L.map('map').setView([42.5, 12.5], 6);
 
-        // Mappa base orografica 3D (Esri Topo Shaded Relief)
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
             maxZoom: 19,
             attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, USGS, NRCAN, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China'
@@ -161,6 +168,7 @@
                         let trackId = track.id || "Struttura";
                         let center = track.center; 
                         let speed = track.speed_kmh || 0;
+                        let direction = track.direction_deg || 0;
                         let intensity = track.intensity || "N/D";
                         let vil = track.vil || 0.0;
                         let echoTop = track.echo_top || 0.0;
@@ -176,30 +184,39 @@
                             }).addTo(vectorsLayer);
                         }
 
-                        // 2. Profilo 3D fluttuante sul territorio (Centroide cella)
+                        // 2. Centroidi e Profilo 3D fluttuante sul territorio (senza bordi bianchi)
                         if (center && center.length === 2) {
                             let imageUrl = profileImage + '?' + new Date().getTime();
 
                             let customIcon = L.divIcon({
                                 className: 'custom-div-icon',
                                 html: `<div class="cell-3d-wrapper">
-                                           <img src="${imageUrl}" width="68" height="38" style="display: block; border-radius: 2px;" alt="3D Cell">
+                                           <img src="${imageUrl}" width="76" height="45" style="display: block;" alt="3D Cell">
                                        </div>`,
-                                iconSize: [76, 44],
-                                iconAnchor: [38, 22]
+                                iconSize: [84, 52],
+                                iconAnchor: [42, 26]
                             });
 
                             let marker = L.marker([center[0], center[1]], { icon: customIcon }).addTo(cellsLayer);
+
+                            // Marker centrale del baricentro (Centroid dot)
+                            let centroidIcon = L.divIcon({
+                                className: 'centroid-icon',
+                                html: `<div class="centroid-dot" title="Baricentro ${trackId}"></div>`,
+                                iconSize: [12, 12],
+                                iconAnchor: [6, 6]
+                            });
+                            L.marker([center[0], center[1]], { icon: centroidIcon }).addTo(cellsLayer);
 
                             let popupContent = `
                                 <div style="font-size: 12px; line-height: 1.35; min-width: 180px;">
                                     <b>ID:</b> ${trackId}<br>
                                     <b>Struttura:</b> ${intensity}<br>
-                                    <b>Velocità:</b> ${speed} km/h<br>
+                                    <b>Velocità:</b> ${speed} km/h (${direction}°)<br>
                                     <b>VIL:</b> ${vil} kg/m² | <b>Top:</b> ${echoTop} km<br>
                                     <div style="text-align: center; margin-top: 6px; background: #fafafa; border: 1px solid #ddd; border-radius: 4px; padding: 4px;">
                                         <div style="font-size: 10px; color: #555; margin-bottom: 2px;">Profilo Verticale Dettagliato</div>
-                                        <img src="${imageUrl}" width="160" height="90" style="display: block; margin: 0 auto; border-radius: 2px;" alt="Profilo Ingrandito">
+                                        <img src="${imageUrl}" width="160" height="95" style="display: block; margin: 0 auto;" alt="Profilo Ingrandito">
                                     </div>
                                 </div>
                             `;
@@ -217,7 +234,6 @@
                                 opacity: 0.85
                             }).addTo(vectorsLayer);
 
-                            // Aggiunge le punte di freccia pulsanti nei punti di forecast (fino a 3 ore)
                             track.forecast_path.forEach((fPoint, index) => {
                                 let arrowIcon = L.divIcon({
                                     className: 'pulsing-arrow-icon',
