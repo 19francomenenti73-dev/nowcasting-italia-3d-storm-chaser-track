@@ -32,7 +32,7 @@ def get_latest_radar_tile_info():
 
 def save_iso_profile_image(grid_data, filename):
     try:
-        # Canvas totalmente trasparente e celle rialzate dai bordi
+        # Canvas pulito, ancorato alla base senza spazi vuoti o ombre sospese
         img = Image.new("RGBA", (160, 95), (0, 0, 0, 0))
         draw = ImageDraw.Draw(img)
         
@@ -42,28 +42,29 @@ def save_iso_profile_image(grid_data, filename):
             tileW = 8
             tileH = 4
             startX = 80
-            startY = 6  # Rialzato rispetto al bordo superiore
+            startY = 10  # Ancoraggio perfetto a terra
 
             def get_color(val):
-                if val >= 12: return (255, 0, 255, 250)      # Magenta
-                elif val >= 10: return (255, 26, 26, 250)   # Rosso
-                elif val >= 8: return (255, 204, 0, 250)    # Giallo
-                elif val >= 6: return (0, 230, 0, 250)      # Verde
-                elif val >= 4: return (0, 191, 255, 250)    # Ciano
-                elif val > 0: return (0, 128, 255, 250)     # Blu
+                if val >= 12: return (255, 0, 255, 250)      # Magenta (Picco estremo)
+                elif val >= 10: return (255, 26, 26, 250)   # Rosso (Forte)
+                elif val >= 8: return (255, 204, 0, 250)    # Giallo (Moderato-Alto)
+                elif val >= 6: return (0, 230, 0, 250)      # Verde (Base moderata)
+                elif val >= 4: return (0, 191, 255, 250)    # Ciano (Debole)
+                elif val > 0: return (0, 128, 255, 250)     # Blu (Leggero)
                 return None
 
+            # Disegna i volumi 3D: l'altezza (h) è proporzionale al valore dBZ in quel punto
             for r in range(rows):
                 for c in range(cols):
                     val = grid_data[r][c]
-                    if val > 0:
+                    if val >= 6:  # Dal verde in poi si alza strutturalmente in 3D
                         isoX = startX + (c - r) * (tileW / 2)
                         isoY = startY + (c + r) * (tileH / 2)
                         color = get_color(val)
                         if color:
                             for h in range(val):
-                                hY = isoY - (h * 2.5)  # Maggiore sviluppo verticale dal basso
-                                draw.ellipse([isoX - 2.5, hY - 2.5, isoX + 2.5, hY + 2.5], fill=color)
+                                hY = isoY - (h * 2.8)  # Elevazione verticale scalata sul valore dBZ
+                                draw.ellipse([isoX - 3, hY - 3, isoX + 3, hY + 3], fill=color)
 
         img.save(filename, format="PNG")
     except Exception as e:
@@ -84,14 +85,14 @@ def create_fallback_data(reason="Standby"):
             {
                 "id": default_id,
                 "center": [41.90, 12.50],
-                "speed_kmh": 0,
+                "speed_kmh": 40,
                 "direction_deg": 45,
                 "intensity": f"Sistema operativo ({reason})",
                 "vil": 0.0,
                 "echo_top": 0.0,
                 "profile_image": default_img,
-                "actual_path": [[41.85, 12.45], [41.88, 12.48], [41.90, 12.50]],
-                "forecast_path": [[41.92, 12.52], [41.95, 12.55], [41.98, 12.58]]
+                "actual_path": [[41.82, 12.42], [41.85, 12.45], [41.88, 12.48], [41.90, 12.50]],
+                "forecast_path": [[41.93, 12.53], [41.96, 12.56], [41.99, 12.59]]
             }
         ]
     }
@@ -125,17 +126,18 @@ def analyze_radar():
                     b = arr[:, :, 2].astype(float)
                     alpha = arr[:, :, 3]
                     
-                    mask_high_dbz = (alpha > 80) & (r > 140) & (b < 150)
-                    if not np.any(mask_high_dbz):
+                    # Maschera estesa per catturare la cella "dal verde in poi" oltre ai nuclei intensi
+                    mask_precipitation = (alpha > 80) & ((r > 130) | (g > 180)) & (b < 200)
+                    if not np.any(mask_precipitation):
                         continue
 
                     kernel = np.ones((2,2), np.uint8)
-                    mask_clean = cv2.morphologyEx(mask_high_dbz.astype(np.uint8) * 255, cv2.MORPH_OPEN, kernel)
+                    mask_clean = cv2.morphologyEx(mask_precipitation.astype(np.uint8) * 255, cv2.MORPH_OPEN, kernel)
                     contours, _ = cv2.findContours(mask_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
                     
                     for cnt in contours:
                         area = cv2.contourArea(cnt)
-                        if area > 8:
+                        if area > 10:
                             x_c, y_c, w, h = cv2.boundingRect(cnt)
                             lat, lon = tile_pixel_to_latlon(z, x, y, x_c + w / 2.0, y_c + h / 2.0)
                             
@@ -161,7 +163,6 @@ def analyze_radar():
                                 lat_dir = np.cos(rad_dir)
                                 lon_dir = np.sin(rad_dir)
 
-                                # Percorso storico blu (intervalli di 15 minuti)
                                 actual_path = [
                                     [lat - lat_dir * step_dist * 3, lon - lon_dir * step_dist * 3],
                                     [lat - lat_dir * step_dist * 2, lon - lon_dir * step_dist * 2],
@@ -169,7 +170,6 @@ def analyze_radar():
                                     [lat, lon]
                                 ]
 
-                                # Vettore predittivo rosso (fino a 3 ore, passi orari)
                                 forecast_path = [
                                     [lat + lat_dir * step_dist * 4, lon + lon_dir * step_dist * 4],
                                     [lat + lat_dir * step_dist * 8, lon + lon_dir * step_dist * 8],
@@ -195,12 +195,12 @@ def analyze_radar():
                                         if pa < 50:
                                             row_vals.append(0)
                                         else:
-                                            if pr > 200 and pb > 200: row_vals.append(12)
-                                            elif pr > 200 and pg < 100: row_vals.append(10)
-                                            elif pr > 200 and pg > 150: row_vals.append(8)
-                                            elif pg > 200: row_vals.append(6)
-                                            elif pb > 200 and pg > 150: row_vals.append(4)
-                                            elif pb > 150: row_vals.append(2)
+                                            if pr > 200 and pb > 200: row_vals.append(12)      # Magenta
+                                            elif pr > 200 and pg < 100: row_vals.append(10)   # Rosso
+                                            elif pr > 200 and pg > 150: row_vals.append(8)    # Giallo
+                                            elif pg > 200: row_vals.append(6)                 # Verde
+                                            elif pb > 200 and pg > 150: row_vals.append(4)    # Ciano
+                                            elif pb > 150: row_vals.append(2)                 # Blu
                                             else: row_vals.append(1)
                                     grid_matrix.append(row_vals)
 
