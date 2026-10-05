@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nowcasting Italia 3D Storm Chaser Track</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #111;
+            color: #333;
+        }
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+        .leaflet-container svg {
+            position: absolute;
+        }
+        /* Banner inferiore unificato */
+        .map-banner {
+            position: absolute;
+            bottom: 15px;
+            left: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.95);
+            padding: 8px 14px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+            border: 1px solid #ccc;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #333;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .banner-section {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .counter-badge {
+            font-weight: bold;
+            color: #d9534f;
+            font-size: 14px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 11px;
+            color: #444;
+        }
+        .legend-line {
+            width: 16px;
+            height: 3px;
+            display: inline-block;
+        }
+        /* Marker 3D fluttuante sul territorio */
+        .cell-3d-wrapper {
+            background: rgba(255, 255, 255, 0.88);
+            padding: 2px 4px;
+            border-radius: 4px;
+            box-shadow: 0 3px 8px rgba(0,0,0,0.4);
+            border: 1px solid #999;
+            text-align: center;
+            transition: transform 0.2s ease;
+        }
+        .cell-3d-wrapper:hover {
+            transform: scale(1.15);
+            z-index: 9999;
+        }
+        /* Punte di freccia / triangolini rossi pulsanti per il vettore predittivo a 3 ore */
+        .pulsing-arrow-icon {
+            background: transparent;
+            border: none;
+        }
+        .pulsing-arrow {
+            width: 0;
+            height: 0;
+            border-left: 6px solid transparent;
+            border-right: 6px solid transparent;
+            border-bottom: 12px solid #ff1a1a;
+            animation: pulse-arrow 1.2s infinite;
+            filter: drop-shadow(0 0 3px rgba(255,0,0,0.8));
+        }
+        @keyframes pulse-arrow {
+            0% { transform: scale(0.8); opacity: 0.6; }
+            50% { transform: scale(1.35); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Banner inferiore unificato -->
+    <div class="map-banner">
+        <div class="banner-section">
+            <span><b>Tracker 3D Orografico:</b> <span id="active-count" class="counter-badge">0</span> attive</span>
+            <span id="last-update" style="font-size: 10px; color: #666; border-left: 1px solid #ddd; padding-left: 8px;"></span>
+        </div>
+        <div class="banner-section" style="flex-wrap: wrap;">
+            <div class="legend-item"><span class="legend-line" style="background: #0066cc;"></span> Storico (ogni 15m)</div>
+            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ff1a1a; display:inline-block; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span> Predittivo 3h (Pulsante)</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        var map = L.map('map').setView([42.5, 12.5], 6);
+
+        // Mappa base orografica 3D (Esri Topo Shaded Relief)
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: 'Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ, TomTom, Intermap, USGS, NRCAN, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China'
+        }).addTo(map);
+
+        var radarLayer = null;
+        var cellsLayer = L.layerGroup().addTo(map);
+        var vectorsLayer = L.layerGroup().addTo(map);
+
+        function loadTrackerData() {
+            fetch('centroids.json?' + new Date().getTime())
+                .then(response => {
+                    if (!response.ok) throw new Error('File dati non disponibile.');
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.radar_tile && data.radar_tile.host && data.radar_tile.path) {
+                        let radarUrl = data.radar_tile.host + data.radar_tile.path + '/256/{z}/{x}/{y}/2/1_1.png';
+                        if (!radarLayer) {
+                            radarLayer = L.tileLayer(radarUrl, {
+                                tileSize: 256,
+                                opacity: 0.65,
+                                attribution: 'Radar by RainViewer',
+                                zIndex: 200
+                            }).addTo(map);
+                        } else {
+                            radarLayer.setUrl(radarUrl);
+                        }
+                    }
+
+                    cellsLayer.clearLayers();
+                    vectorsLayer.clearLayers();
+
+                    let structures = data.macro_structures || [];
+                    let count = structures.length;
+
+                    structures.forEach(track => {
+                        let trackId = track.id || "Struttura";
+                        let center = track.center; 
+                        let speed = track.speed_kmh || 0;
+                        let intensity = track.intensity || "N/D";
+                        let vil = track.vil || 0.0;
+                        let echoTop = track.echo_top || 0.0;
+                        let profileImage = track.profile_image || "";
+
+                        // 1. Vettore Storico Normale (Blu - cadenzato ogni 15 minuti)
+                        if (track.actual_path && track.actual_path.length > 0) {
+                            let latLngs = track.actual_path.map(p => [p[0], p[1]]);
+                            L.polyline(latLngs, {
+                                color: '#0066cc',
+                                weight: 4.5,
+                                opacity: 0.9
+                            }).addTo(vectorsLayer);
+                        }
+
+                        // 2. Profilo 3D fluttuante sul territorio (Centroide cella)
+                        if (center && center.length === 2) {
+                            let imageUrl = profileImage + '?' + new Date().getTime();
+
+                            let customIcon = L.divIcon({
+                                className: 'custom-div-icon',
+                                html: `<div class="cell-3d-wrapper">
+                                           <img src="${imageUrl}" width="68" height="38" style="display: block; border-radius: 2px;" alt="3D Cell">
+                                       </div>`,
+                                iconSize: [76, 44],
+                                iconAnchor: [38, 22]
+                            });
+
+                            let marker = L.marker([center[0], center[1]], { icon: customIcon }).addTo(cellsLayer);
+
+                            let popupContent = `
+                                <div style="font-size: 12px; line-height: 1.35; min-width: 180px;">
+                                    <b>ID:</b> ${trackId}<br>
+                                    <b>Struttura:</b> ${intensity}<br>
+                                    <b>Velocità:</b> ${speed} km/h<br>
+                                    <b>VIL:</b> ${vil} kg/m² | <b>Top:</b> ${echoTop} km<br>
+                                    <div style="text-align: center; margin-top: 6px; background: #fafafa; border: 1px solid #ddd; border-radius: 4px; padding: 4px;">
+                                        <div style="font-size: 10px; color: #555; margin-bottom: 2px;">Profilo Verticale Dettagliato</div>
+                                        <img src="${imageUrl}" width="160" height="90" style="display: block; margin: 0 auto; border-radius: 2px;" alt="Profilo Ingrandito">
+                                    </div>
+                                </div>
+                            `;
+
+                            marker.bindPopup(popupContent);
+                        }
+
+                        // 3. Vettore Predittivo (Rosso - Punte di freccia triangolari pulsanti estese fino a 3 ore)
+                        if (track.forecast_path && track.forecast_path.length > 0 && center) {
+                            let linePoints = [center, ...track.forecast_path];
+                            L.polyline(linePoints, {
+                                color: '#ff1a1a',
+                                weight: 3.5,
+                                dashArray: '6, 8',
+                                opacity: 0.85
+                            }).addTo(vectorsLayer);
+
+                            // Aggiunge le punte di freccia pulsanti nei punti di forecast (fino a 3 ore)
+                            track.forecast_path.forEach((fPoint, index) => {
+                                let arrowIcon = L.divIcon({
+                                    className: 'pulsing-arrow-icon',
+                                    html: '<div class="pulsing-arrow" title="Previsione +' + ((index + 1) * 60) + ' min"></div>',
+                                    iconSize: [16, 16],
+                                    iconAnchor: [8, 8]
+                                });
+                                L.marker([fPoint[0], fPoint[1]], { icon: arrowIcon }).addTo(vectorsLayer);
+                            });
+                        }
+                    });
+
+                    document.getElementById('active-count').innerText = count;
+                    document.getElementById('last-update').innerText = 'Aggiornato: ' + new Date().toLocaleTimeString();
+                })
+                .catch(error => {
+                    console.log('Attesa dati...', error);
+                });
+        }
+
+        loadTrackerData();
+        setInterval(loadTrackerData, 180000);
+    </script>
+</body>
+</html>
