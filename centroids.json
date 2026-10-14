@@ -1,51 +1,47 @@
 {
-    "generated_at": "2026-10-14T15:00:18.203145Z",
+    "generated_at": "2026-10-14T15:32:19.529305Z",
     "radar_tile": {
         "host": "https://tilecache.rainviewer.com",
-        "path": "/v2/radar/b19c20fe8c1c"
+        "path": "/v2/radar/1710000000"
     },
     "macro_structures": [
         {
-            "id": "Core-485-1",
+            "id": "Core-Standby-01",
             "center": [
-                46.98025235521882,
-                9.228515625
+                41.9,
+                12.5
             ],
-            "speed_kmh": 44,
-            "intensity": ">= 32 dBZ — Supercella / Cella",
-            "vil": 11.7,
-            "echo_top": 7.3,
-            "profile_image": "profiles/Core-485-1.png",
+            "speed_kmh": 0,
+            "intensity": "Sistema operativo (Nessun nucleo intenso)",
+            "vil": 0.0,
+            "echo_top": 0.0,
+            "profile_image": "profiles/Core-Standby-01.png",
             "actual_path": [
                 [
-                    46.90105235521882,
-                    9.122915625
+                    41.85,
+                    12.45
                 ],
                 [
-                    46.927452355218826,
-                    9.158115625
+                    41.88,
+                    12.48
                 ],
                 [
-                    46.95385235521882,
-                    9.193315625
-                ],
-                [
-                    46.98025235521882,
-                    9.228515625
+                    41.9,
+                    12.5
                 ]
             ],
             "forecast_path": [
                 [
-                    47.006652355218826,
-                    9.263715625
+                    41.92,
+                    12.52
                 ],
                 [
-                    47.03305235521882,
-                    9.298915625
+                    41.95,
+                    12.55
                 ],
                 [
-                    47.05945235521882,
-                    9.334115625
+                    41.98,
+                    12.58
                 ]
             ]
         }
