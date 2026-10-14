@@ -1,47 +1,51 @@
 {
-    "generated_at": "2026-10-14T15:32:19.529305Z",
+    "generated_at": "2026-10-14T16:22:43.973398Z",
     "radar_tile": {
         "host": "https://tilecache.rainviewer.com",
-        "path": "/v2/radar/1710000000"
+        "path": "/v2/radar/7dc71d893a67"
     },
     "macro_structures": [
         {
-            "id": "Core-Standby-01",
+            "id": "Core-485-1",
             "center": [
-                41.9,
-                12.5
+                46.98025235521882,
+                9.228515625
             ],
-            "speed_kmh": 0,
-            "intensity": "Sistema operativo (Nessun nucleo intenso)",
-            "vil": 0.0,
-            "echo_top": 0.0,
-            "profile_image": "profiles/Core-Standby-01.png",
+            "speed_kmh": 46,
+            "intensity": ">= 32 dBZ — Supercella / Cella",
+            "vil": 12.0,
+            "echo_top": 7.4,
+            "profile_image": "profiles/Core-485-1.png",
             "actual_path": [
                 [
-                    41.85,
-                    12.45
+                    46.897452355218824,
+                    9.118115625
                 ],
                 [
-                    41.88,
-                    12.48
+                    46.925052355218824,
+                    9.154915625
                 ],
                 [
-                    41.9,
-                    12.5
+                    46.952652355218824,
+                    9.191715625
+                ],
+                [
+                    46.98025235521882,
+                    9.228515625
                 ]
             ],
             "forecast_path": [
                 [
-                    41.92,
-                    12.52
+                    47.00785235521882,
+                    9.265315625
                 ],
                 [
-                    41.95,
-                    12.55
+                    47.03545235521882,
+                    9.302115625
                 ],
                 [
-                    41.98,
-                    12.58
+                    47.06305235521882,
+                    9.338915625
                 ]
             ]
         }
