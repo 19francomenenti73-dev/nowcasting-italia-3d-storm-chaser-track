@@ -1,51 +1,47 @@
 {
-    "generated_at": "2026-10-26T05:38:36.086815Z",
+    "generated_at": "2026-10-26T11:57:17.141744Z",
     "radar_tile": {
         "host": "https://tilecache.rainviewer.com",
-        "path": "/v2/radar/c0c071a0a68b"
+        "path": "/v2/radar/1710000000"
     },
     "macro_structures": [
         {
-            "id": "Core-485-1",
+            "id": "Core-Standby-01",
             "center": [
-                47.15984001304431,
-                8.96484375
+                41.9,
+                12.5
             ],
-            "speed_kmh": 46,
-            "intensity": ">= 32 dBZ — Supercella / Cella",
-            "vil": 12.1,
-            "echo_top": 7.4,
-            "profile_image": "profiles/Core-485-1.png",
+            "speed_kmh": 0,
+            "intensity": "Sistema operativo (Nessun nucleo intenso)",
+            "vil": 0.0,
+            "echo_top": 0.0,
+            "profile_image": "profiles/Core-Standby-01.png",
             "actual_path": [
                 [
-                    47.07704001304431,
-                    8.85444375
+                    41.85,
+                    12.45
                 ],
                 [
-                    47.10464001304431,
-                    8.89124375
+                    41.88,
+                    12.48
                 ],
                 [
-                    47.13224001304431,
-                    8.92804375
-                ],
-                [
-                    47.15984001304431,
-                    8.96484375
+                    41.9,
+                    12.5
                 ]
             ],
             "forecast_path": [
                 [
-                    47.18744001304431,
-                    9.00164375
+                    41.92,
+                    12.52
                 ],
                 [
-                    47.21504001304431,
-                    9.03844375
+                    41.95,
+                    12.55
                 ],
                 [
-                    47.24264001304431,
-                    9.07524375
+                    41.98,
+                    12.58
                 ]
             ]
         }
